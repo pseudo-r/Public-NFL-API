@@ -1,0 +1,11 @@
+# .gitignore for Public-NFL-API documentation repo
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
+node_modules/
+__pycache__/
+*.pyc
+.vscode/
+.idea/
