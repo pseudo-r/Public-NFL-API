@@ -14,6 +14,17 @@
 
 ---
 
+## 📱 Real-World Apps Built With This API
+
+These apps are live examples of what you can build using this documentation and the included Django service:
+
+### 🏈 [Sportly: American Football Live](https://play.google.com/store/apps/details?id=com.sportly.football)
+> Premium NFL scores, standings, play-by-play, and dynamic game tracking. Built entirely on the endpoints documented here.
+
+[![Get it on Google Play](https://img.shields.io/badge/Google_Play-Sportly_Football-3DDC84?logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.sportly.football)
+
+---
+
 ## Table of Contents
 
 - [Overview](#overview)
