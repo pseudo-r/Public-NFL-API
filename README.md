@@ -1,5 +1,7 @@
 # NFL Public API Documentation
 
+Service maintenance: [September 2026 audit, new routes, verification, and limitations](docs/audit-2026-09-30.md).
+
 **Disclaimer:** This documents NFL data APIs across multiple domains, including undocumented public endpoints used by NFL.com and ESPN's NFL data infrastructure. Not affiliated with the NFL or ESPN. Use responsibly.
 
 ---

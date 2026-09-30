@@ -44,7 +44,7 @@ CACHES = {
 LOGGING["handlers"]["console"]["formatter"] = "json"  # noqa: F405
 LOGGING["root"]["level"] = "INFO"  # noqa: F405
 for logger in LOGGING["loggers"].values():  # noqa: F405
-    logger["handlers"] = ["json"]
+    logger["handlers"] = ["console"]
 
 # CORS - Restrict to allowed origins
 CORS_ALLOW_ALL_ORIGINS = False
@@ -56,7 +56,7 @@ CELERY_BROKER_URL = env("CELERY_BROKER_URL")  # noqa: F405
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND")  # noqa: F405
 
 # Static files
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
 
 # Email - Use SMTP in production
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

@@ -14,7 +14,7 @@ from django.db import transaction
 
 from apps.core.exceptions import IngestionError
 from apps.nfl.models import Competitor, Event, League, Sport, Team, Venue
-from clients.nfl_client import nflClient, get_nfl_client
+from clients.nfl_client import get_nfl_client, nflClient
 
 logger = structlog.get_logger(__name__)
 
@@ -102,9 +102,9 @@ class TeamIngestionService:
             _, league_obj = get_or_create_sport_and_league(sport, league)
 
             response = self.client.get_teams(sport, league)
-            teams_data = response.data.get("sports", [{}])[0].get("leagues", [{}])[0].get(
-                "teams", []
-            )
+            sports = response.data.get("sports") or [{}]
+            leagues = sports[0].get("leagues") or [{}]
+            teams_data = leagues[0].get("teams") or []
 
             if not teams_data:
                 logger.warning("no_teams_found", sport=sport, league=league)
@@ -112,23 +112,24 @@ class TeamIngestionService:
 
             for team_data in teams_data:
                 try:
-                    parsed = self._parse_team_data(team_data)
-                    nfl_id = parsed.pop("nfl_id")
+                    with transaction.atomic():
+                        parsed = self._parse_team_data(team_data)
+                        nfl_id = parsed.pop("nfl_id")
 
-                    if not nfl_id:
-                        result.errors += 1
-                        continue
+                        if not nfl_id:
+                            result.errors += 1
+                            continue
 
-                    _, created = Team.objects.update_or_create(
-                        league=league_obj,
-                        nfl_id=nfl_id,
-                        defaults=parsed,
-                    )
+                        _, created = Team.objects.update_or_create(
+                            league=league_obj,
+                            nfl_id=nfl_id,
+                            defaults=parsed,
+                        )
 
-                    if created:
-                        result.created += 1
-                    else:
-                        result.updated += 1
+                        if created:
+                            result.created += 1
+                        else:
+                            result.updated += 1
 
                 except Exception as e:
                     logger.error("team_ingestion_error", team_data=team_data, error=str(e))
@@ -309,30 +310,31 @@ class ScoreboardIngestionService:
 
             for event_data in events_data:
                 try:
-                    event_fields, competitors_data, venue_data = self._parse_event_data(
-                        event_data, league_obj
-                    )
+                    with transaction.atomic():
+                        event_fields, competitors_data, venue_data = self._parse_event_data(
+                            event_data, league_obj
+                        )
 
-                    nfl_id = event_fields.pop("nfl_id")
-                    if not nfl_id:
-                        result.errors += 1
-                        continue
+                        nfl_id = event_fields.pop("nfl_id")
+                        if not nfl_id:
+                            result.errors += 1
+                            continue
 
-                    venue = self._get_or_create_venue(venue_data)
+                        venue = self._get_or_create_venue(venue_data)
 
-                    event, created = Event.objects.update_or_create(
-                        league=league_obj,
-                        nfl_id=nfl_id,
-                        defaults={**event_fields, "venue": venue},
-                    )
+                        event, created = Event.objects.update_or_create(
+                            league=league_obj,
+                            nfl_id=nfl_id,
+                            defaults={**event_fields, "venue": venue},
+                        )
 
-                    event.competitors.all().delete()
-                    self._create_competitors(event, competitors_data, league_obj)
+                        event.competitors.all().delete()
+                        self._create_competitors(event, competitors_data, league_obj)
 
-                    if created:
-                        result.created += 1
-                    else:
-                        result.updated += 1
+                        if created:
+                            result.created += 1
+                        else:
+                            result.updated += 1
 
                 except Exception as e:
                     logger.error("event_ingestion_error", event_id=event_data.get("id"), error=str(e))
@@ -411,20 +413,21 @@ class NewsIngestionService:
 
             for raw_item in articles_data:
                 try:
-                    parsed = self._parse_article(raw_item)
-                    if not parsed:
-                        result.errors += 1
-                        continue
+                    with transaction.atomic():
+                        parsed = self._parse_article(raw_item)
+                        if not parsed:
+                            result.errors += 1
+                            continue
 
-                    nfl_id = parsed.pop("nfl_id")
-                    _, created = NewsArticle.objects.update_or_create(
-                        nfl_id=nfl_id,
-                        defaults={**parsed, "league": league_obj},
-                    )
-                    if created:
-                        result.created += 1
-                    else:
-                        result.updated += 1
+                        nfl_id = parsed.pop("nfl_id")
+                        _, created = NewsArticle.objects.update_or_create(
+                            nfl_id=nfl_id,
+                            defaults={**parsed, "league": league_obj},
+                        )
+                        if created:
+                            result.created += 1
+                        else:
+                            result.updated += 1
 
                 except Exception as e:
                     logger.error("news_article_error", error=str(e))
@@ -471,7 +474,11 @@ class InjuryIngestionService:
             return None
 
         raw_status = item.get("status") or ""
-        team_data = item.get("team") or {}
+        team_data = item.get("team") or athlete_data.get("team") or {}
+
+        injury_type = item.get("type") or (item.get("details") or {}).get("type") or ""
+        if isinstance(injury_type, dict):
+            injury_type = injury_type.get("description") or injury_type.get("name") or ""
 
         return {
             "athlete_nfl_id": str(athlete_data.get("id") or ""),
@@ -480,7 +487,7 @@ class InjuryIngestionService:
             "status": self._normalize_status(raw_status),
             "status_display": raw_status,
             "description": item.get("description") or item.get("shortComment") or "",
-            "injury_type": item.get("type") or "",
+            "injury_type": injury_type,
             "team_nfl_id": str(team_data.get("id") or ""),
             "raw_data": item,
         }
@@ -496,36 +503,46 @@ class InjuryIngestionService:
             _, league_obj = get_or_create_sport_and_league(sport, league)
 
             response = self.client.get_league_injuries(sport, league)
-            items = response.data.get("items") or response.data.get("injuries") or []
+            data = response.data
+            items = data.get("injuries") if "injuries" in data else data.get("items")
+            if not isinstance(items, list):
+                raise ValueError("Expected an injury snapshot list")
 
-            if not items:
-                logger.info("no_injuries_found", sport=sport, league=league)
-                return result
+            # Validate the complete snapshot before replacing existing records.
+            # The live Site API groups athlete injuries under each team's id.
+            parsed_items = []
+            for group in items:
+                if not isinstance(group, dict):
+                    raise ValueError("Invalid injury entry")
+                entries = group.get("injuries", [group])
+                if not isinstance(entries, list):
+                    raise ValueError("Invalid team injury list")
+                for item in entries:
+                    if not isinstance(item, dict):
+                        raise ValueError("Invalid athlete injury")
+                    item = dict(item)
+                    if "injuries" in group and not item.get("team"):
+                        item["team"] = {"id": group.get("id", "")}
+                    parsed = self._parse_injury(item)
+                    if not parsed:
+                        raise ValueError("Injury entry has no athlete name")
+                    parsed_items.append(parsed)
+
+            League.objects.select_for_update().get(pk=league_obj.pk)
 
             # Injuries are a snapshot — delete stale entries then re-insert
             deleted, _ = Injury.objects.filter(league=league_obj).delete()
             logger.debug("cleared_old_injuries", count=deleted, sport=sport, league=league)
 
-            for raw_item in items:
-                try:
-                    parsed = self._parse_injury(raw_item)
-                    if not parsed:
-                        result.errors += 1
-                        continue
-
-                    team_nfl_id = parsed.pop("team_nfl_id", "")
-                    team_obj = (
-                        Team.objects.filter(league=league_obj, nfl_id=team_nfl_id).first()
-                        if team_nfl_id
-                        else None
-                    )
-
-                    Injury.objects.create(league=league_obj, team=team_obj, **parsed)
-                    result.created += 1
-
-                except Exception as e:
-                    logger.error("injury_ingestion_error", error=str(e))
-                    result.errors += 1
+            for parsed in parsed_items:
+                team_nfl_id = parsed.pop("team_nfl_id", "")
+                team_obj = (
+                    Team.objects.filter(league=league_obj, nfl_id=team_nfl_id).first()
+                    if team_nfl_id
+                    else None
+                )
+                Injury.objects.create(league=league_obj, team=team_obj, **parsed)
+                result.created += 1
 
             logger.info(
                 "injuries_ingested",
@@ -594,33 +611,35 @@ class TransactionIngestionService:
 
             for raw_item in items:
                 try:
-                    parsed = self._parse_transaction(raw_item)
-                    if not parsed:
-                        result.errors += 1
-                        continue
+                    with transaction.atomic():
+                        parsed = self._parse_transaction(raw_item)
+                        if not parsed:
+                            result.errors += 1
+                            continue
 
-                    team_nfl_id = parsed.pop("team_nfl_id", "")
-                    team_obj = (
-                        Team.objects.filter(league=league_obj, nfl_id=team_nfl_id).first()
-                        if team_nfl_id
-                        else None
-                    )
+                        team_nfl_id = parsed.pop("team_nfl_id", "")
+                        team_obj = (
+                            Team.objects.filter(league=league_obj, nfl_id=team_nfl_id).first()
+                            if team_nfl_id
+                            else None
+                        )
 
-                    nfl_id = parsed.get("nfl_id") or ""
-                    if nfl_id:
+                        from apps.nfl.identity import transaction_identity
+
+                        identity_key = transaction_identity(
+                            parsed["nfl_id"], parsed["date"], parsed["description"],
+                            team_nfl_id, parsed["athlete_nfl_id"],
+                        )
                         _, created = Transaction.objects.update_or_create(
                             league=league_obj,
-                            nfl_id=nfl_id,
+                            identity_key=identity_key,
                             defaults={**parsed, "team": team_obj},
                         )
-                    else:
-                        Transaction.objects.create(league=league_obj, team=team_obj, **parsed)
-                        created = True
 
-                    if created:
-                        result.created += 1
-                    else:
-                        result.updated += 1
+                        if created:
+                            result.created += 1
+                        else:
+                            result.updated += 1
 
                 except Exception as e:
                     logger.error("transaction_ingestion_error", error=str(e))
@@ -672,7 +691,23 @@ class AthleteStatsIngestionService:
 
             athlete_obj = Athlete.objects.filter(nfl_id=str(athlete_nfl_id)).first()
             athlete_name = athlete_obj.display_name if athlete_obj else str(athlete_nfl_id)
-            season_val = season or (data.get("season") or {}).get("year") or 0
+            season_val = season or (data.get("season") or {}).get("year")
+            if not season_val:
+                raise ValueError("Specify season when the athlete response has no season year")
+
+            stats = data.get("stats") or data.get("splits") or {}
+            if data.get("categories"):
+                stats = []
+                for category in data["categories"]:
+                    selected = dict(category)
+                    if "statistics" in category:
+                        selected["statistics"] = [
+                            row for row in category["statistics"]
+                            if (row.get("season") or {}).get("year") == season_val
+                        ]
+                        # Upstream totals span the athlete's career, not this season.
+                        selected.pop("totals", None)
+                    stats.append(selected)
 
             _, created = AthleteSeasonStats.objects.update_or_create(
                 league=league_obj,
@@ -682,7 +717,7 @@ class AthleteStatsIngestionService:
                 defaults={
                     "athlete": athlete_obj,
                     "athlete_name": athlete_name,
-                    "stats": data.get("stats") or data.get("splits") or {},
+                    "stats": stats,
                     "raw_data": data,
                 },
             )

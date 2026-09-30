@@ -1,6 +1,10 @@
 """Test settings."""
 
-from .base import *  # noqa: F401, F403
+import os as _os
+
+import environ as _environ
+
+from .base import *  # noqa: E402, F401, F403
 
 DEBUG = False
 
@@ -34,12 +38,12 @@ for logger in LOGGING["loggers"].values():  # noqa: F405
     logger["level"] = "WARNING"
 
 # Faster static files handling
-STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}}
 
 # nfl Client - Use test configuration
-nfl_CLIENT = {
-    "SITE_API_BASE_URL": "https://site.api.nfl.com",
-    "CORE_API_BASE_URL": "https://sports.core.api.nfl.com",
+NFL_CLIENT = {
+    "SITE_API_BASE_URL": "https://site.api.espn.com",
+    "CORE_API_BASE_URL": "https://sports.core.api.espn.com",
     "TIMEOUT": 5.0,
     "MAX_RETRIES": 1,
     "RETRY_BACKOFF": 0.1,
@@ -47,3 +51,11 @@ nfl_CLIENT = {
     "RATE_LIMIT_REQUESTS": 1000,
     "RATE_LIMIT_PERIOD": 60,
 }
+
+# Opt into a separate test database explicitly; never use production DATABASE_URL.
+
+
+if _os.environ.get("TEST_DATABASE_URL"):
+    DATABASES = {"default": _environ.Env.db_url_config(_os.environ["TEST_DATABASE_URL"])}
+MIDDLEWARE = [m for m in MIDDLEWARE if m != "whitenoise.middleware.WhiteNoiseMiddleware"]  # noqa: F405
+INGEST_REQUIRE_STAFF = False

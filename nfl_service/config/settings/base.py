@@ -120,7 +120,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
 
 
 # Default primary key field type
@@ -223,22 +223,22 @@ CELERY_BEAT_SCHEDULE = {
 
 
 # nfl Client settings
-nfl_CLIENT = {
+NFL_CLIENT = {
     # Domain URLs — override in .env if needed
     "SITE_API_BASE_URL": env(
-        "nfl_SITE_API_BASE_URL", default="https://site.api.nfl.com"
+        "nfl_SITE_API_BASE_URL", default="https://site.api.espn.com"
     ),
     "CORE_API_BASE_URL": env(
-        "nfl_CORE_API_BASE_URL", default="https://sports.core.api.nfl.com"
+        "nfl_CORE_API_BASE_URL", default="https://sports.core.api.espn.com"
     ),
     "WEB_V3_API_BASE_URL": env(
-        "nfl_WEB_V3_API_BASE_URL", default="https://site.web.api.nfl.com"
+        "nfl_WEB_V3_API_BASE_URL", default="https://site.web.api.espn.com"
     ),
     "CDN_API_BASE_URL": env(
-        "nfl_CDN_API_BASE_URL", default="https://cdn.nfl.com"
+        "nfl_CDN_API_BASE_URL", default="https://cdn.espn.com"
     ),
     "NOW_API_BASE_URL": env(
-        "nfl_NOW_API_BASE_URL", default="https://now.core.api.nfl.com"
+        "nfl_NOW_API_BASE_URL", default="https://now.core.api.espn.com"
     ),
     # Request behaviour
     "TIMEOUT": env.float("nfl_TIMEOUT", default=30.0),

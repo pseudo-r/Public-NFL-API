@@ -18,8 +18,8 @@ class TestnflClient:
     def test_client_initialization(self):
         """Test client initializes with default settings."""
         client = nflClient()
-        assert client.site_api_url == "https://site.api.nfl.com"
-        assert client.core_api_url == "https://sports.core.api.nfl.com"
+        assert client.site_api_url == "https://site.api.espn.com"
+        assert client.core_api_url == "https://sports.core.api.espn.com"
         assert client.timeout == 5.0  # From test settings
         assert client.max_retries == 1  # From test settings
 
@@ -41,7 +41,7 @@ class TestnflClient:
             nflEndpointDomain.SITE,
             "/apis/site/v2/sports/basketball/nba/scoreboard",
         )
-        assert url == "https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/scoreboard"
+        assert url == "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
 
     def test_build_url_core_domain(self):
         """Test URL building for core domain."""
@@ -50,7 +50,7 @@ class TestnflClient:
             nflEndpointDomain.CORE,
             "/v2/sports/basketball/leagues/nba",
         )
-        assert url == "https://sports.core.api.nfl.com/v2/sports/basketball/leagues/nba"
+        assert url == "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
 
     def test_context_manager(self):
         """Test client can be used as context manager."""
@@ -65,7 +65,7 @@ class TestnflClient:
             ]
         }
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20241215",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20241215",
             json=mock_response,
         )
 
@@ -81,7 +81,7 @@ class TestnflClient:
 
         mock_response = {"events": []}
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20241215",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20241215",
             json=mock_response,
         )
 
@@ -108,7 +108,7 @@ class TestnflClient:
             ]
         }
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/teams?limit=100",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=100",
             json=mock_response,
         )
 
@@ -122,7 +122,7 @@ class TestnflClient:
         """Test successful single team fetch."""
         mock_response = {"team": {"id": "1", "name": "Atlanta Hawks"}}
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/teams/1",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/1",
             json=mock_response,
         )
 
@@ -135,7 +135,7 @@ class TestnflClient:
     def test_handle_404_response(self, httpx_mock: HTTPXMock):
         """Test 404 response raises nflNotFoundError."""
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/teams/999",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/999",
             status_code=404,
         )
 
@@ -145,7 +145,7 @@ class TestnflClient:
     def test_handle_429_response(self, httpx_mock: HTTPXMock):
         """Test 429 response raises nflRateLimitError."""
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/scoreboard",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
             status_code=429,
         )
 
@@ -156,7 +156,7 @@ class TestnflClient:
         """Test 500 response triggers retry and eventually raises error."""
         # Add response for the single retry attempt (max_retries=1 in test settings)
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/scoreboard",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
             status_code=500,
         )
 
@@ -166,7 +166,7 @@ class TestnflClient:
     def test_handle_invalid_json(self, httpx_mock: HTTPXMock):
         """Test invalid JSON response raises nflClientError."""
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/scoreboard",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
             content=b"not valid json",
             headers={"content-type": "application/json"},
         )
@@ -180,7 +180,7 @@ class TestnflClient:
         """Test successful event fetch."""
         mock_response = {"header": {"id": "401584666"}}
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/summary?event=401584666",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401584666",
             json=mock_response,
         )
 
@@ -193,7 +193,7 @@ class TestnflClient:
         """Test successful league info fetch from core API."""
         mock_response = {"id": "46", "name": "NBA"}
         httpx_mock.add_response(
-            url="https://sports.core.api.nfl.com/v2/sports/basketball/leagues/nba",
+            url="https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba",
             json=mock_response,
         )
 
@@ -212,7 +212,7 @@ class TestnflClientRetry:
         # First request raises error, second succeeds
         httpx_mock.add_exception(
             httpx.ConnectError("Connection refused"),
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/scoreboard",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
         )
 
         with nflClient() as client, pytest.raises(nflClientError) as exc_info:
@@ -229,22 +229,22 @@ class TestNewDomainRouting:
     """Verify new nflEndpointDomain values map to correct base URLs."""
 
     def setup_method(self):
-        self.client = nflClient(site_api_url="https://site.api.nfl.com")
+        self.client = nflClient(site_api_url="https://site.api.espn.com")
 
     def test_web_v3_domain_url(self):
         url = self.client._build_url(
             nflEndpointDomain.WEB_V3,
             "/apis/common/v3/sports/basketball/nba/athletes/1/stats",
         )
-        assert url.startswith("https://site.web.api.nfl.com")
+        assert url.startswith("https://site.web.api.espn.com")
 
     def test_cdn_domain_url(self):
         url = self.client._build_url(nflEndpointDomain.CDN, "/core/nfl/game")
-        assert url.startswith("https://cdn.nfl.com")
+        assert url.startswith("https://cdn.espn.com")
 
     def test_now_domain_url(self):
         url = self.client._build_url(nflEndpointDomain.NOW, "/v1/sports/news")
-        assert url.startswith("https://now.core.api.nfl.com")
+        assert url.startswith("https://now.core.api.espn.com")
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +257,7 @@ class TestGetStandingsDomainFix:
     def test_standings_path_uses_apis_v2(self, httpx_mock: HTTPXMock):
         """Standings must resolve to /apis/v2/ — not /apis/site/v2/."""
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/v2/sports/basketball/nba/standings",
+            url="https://site.api.espn.com/apis/v2/sports/basketball/nba/standings",
             json={"children": [], "seasons": {}},
         )
         with nflClient() as client:
@@ -269,7 +269,7 @@ class TestGetStandingsDomainFix:
         client = nflClient()
         # Inspect the path string that would be composed
         # get_standings produces: /apis/v2/sports/{sport}/{league}/standings
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
         mock_resp = MagicMock()
         mock_resp.is_success = True
         mock_resp.data = {}
@@ -288,7 +288,7 @@ class TestLeagueWideEndpoints:
 
     def test_get_league_injuries(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/injuries",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries",
             json={"items": []},
         )
         with nflClient() as client:
@@ -297,7 +297,7 @@ class TestLeagueWideEndpoints:
 
     def test_get_league_transactions(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/football/nfl/transactions",
+            url="https://site.api.espn.com/apis/site/v2/sports/football/nfl/transactions",
             json={"items": []},
         )
         with nflClient() as client:
@@ -306,7 +306,7 @@ class TestLeagueWideEndpoints:
 
     def test_get_groups(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/groups",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/groups",
             json={"groups": []},
         )
         with nflClient() as client:
@@ -322,7 +322,7 @@ class TestAthleteV3Endpoints:
 
     def test_get_athlete_overview_uses_web_domain(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://site.web.api.nfl.com/apis/common/v3/sports/basketball/nba/athletes/1234/overview",
+            url="https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/1234/overview",
             json={"athlete": {}, "statistics": []},
         )
         with nflClient() as client:
@@ -331,7 +331,7 @@ class TestAthleteV3Endpoints:
 
     def test_get_athlete_stats_uses_web_domain(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://site.web.api.nfl.com/apis/common/v3/sports/football/nfl/athletes/3054211/stats",
+            url="https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3054211/stats",
             json={"filters": [], "athletes": []},
         )
         with nflClient() as client:
@@ -340,7 +340,7 @@ class TestAthleteV3Endpoints:
 
     def test_get_athlete_gamelog_uses_web_domain(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://site.web.api.nfl.com/apis/common/v3/sports/baseball/mlb/athletes/33912/gamelog",
+            url="https://site.web.api.espn.com/apis/common/v3/sports/baseball/mlb/athletes/33912/gamelog",
             json={"events": []},
         )
         with nflClient() as client:
@@ -349,7 +349,7 @@ class TestAthleteV3Endpoints:
 
     def test_get_athlete_splits_uses_web_domain(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://site.web.api.nfl.com/apis/common/v3/sports/hockey/nhl/athletes/999/splits",
+            url="https://site.web.api.espn.com/apis/common/v3/sports/hockey/nhl/athletes/999/splits",
             json={"splits": {}},
         )
         with nflClient() as client:
@@ -358,7 +358,7 @@ class TestAthleteV3Endpoints:
 
     def test_get_statistics_by_athlete_uses_web_domain(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://site.web.api.nfl.com/apis/common/v3/sports/baseball/mlb/statistics/byathlete?limit=50&page=1&category=batting",
+            url="https://site.web.api.espn.com/apis/common/v3/sports/baseball/mlb/statistics/byathlete?limit=50&page=1&category=batting",
             json={"athletes": []},
         )
         with nflClient() as client:
@@ -374,7 +374,7 @@ class TestCDNEndpoints:
 
     def test_get_cdn_game_uses_cdn_domain(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://cdn.nfl.com/core/nfl/game?xhr=1&gameId=401547667",
+            url="https://cdn.espn.com/core/nfl/game?xhr=1&gameId=401547667",
             json={"gamepackageJSON": {}},
         )
         with nflClient() as client:
@@ -383,7 +383,7 @@ class TestCDNEndpoints:
 
     def test_get_cdn_game_boxscore_view(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://cdn.nfl.com/core/nba/boxscore?xhr=1&gameId=401584666",
+            url="https://cdn.espn.com/core/nba/boxscore?xhr=1&gameId=401584666",
             json={"gamepackageJSON": {}},
         )
         with nflClient() as client:
@@ -392,7 +392,7 @@ class TestCDNEndpoints:
 
     def test_get_cdn_scoreboard(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://cdn.nfl.com/core/nba/scoreboard?xhr=1",
+            url="https://cdn.espn.com/core/nba/scoreboard?xhr=1",
             json={"events": []},
         )
         with nflClient() as client:
@@ -408,7 +408,7 @@ class TestNowNewsEndpoints:
 
     def test_get_now_news_uses_now_domain(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://now.core.api.nfl.com/v1/sports/news?limit=20&offset=0",
+            url="https://now.core.api.espn.com/v1/sports/news?limit=20&offset=0",
             json={"resultsCount": 0, "feed": []},
         )
         with nflClient() as client:
@@ -417,7 +417,7 @@ class TestNowNewsEndpoints:
 
     def test_get_now_news_with_sport_filter(self, httpx_mock: HTTPXMock):
         httpx_mock.add_response(
-            url="https://now.core.api.nfl.com/v1/sports/news?limit=20&offset=0&sport=football&league=nfl",
+            url="https://now.core.api.espn.com/v1/sports/news?limit=20&offset=0&sport=football&league=nfl",
             json={"resultsCount": 5, "feed": []},
         )
         with nflClient() as client:

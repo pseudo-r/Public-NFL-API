@@ -7,7 +7,7 @@ error handling, retries, and rate limiting.
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import httpx
@@ -16,7 +16,7 @@ from django.conf import settings
 from tenacity import (
     RetryError,
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -26,24 +26,29 @@ from apps.core.exceptions import (
     nflNotFoundError,
     nflRateLimitError,
 )
+from clients.dates import scoreboard_dates
 
 logger = structlog.get_logger(__name__)
 
 
-class nflEndpointDomain(str, Enum):
+class nflTransientError(nflClientError):
+    """An upstream server failure that can be retried safely."""
+
+
+class nflEndpointDomain(StrEnum):
     """nfl API domain types."""
 
-    SITE = "site"          # site.api.nfl.com
-    CORE = "core"          # sports.core.api.nfl.com
-    SITE_V2 = "site_v2"    # site.api.nfl.com/apis/v2/ — standings only
-    WEB_V3 = "web_v3"      # site.web.api.nfl.com/apis/common/v3/ — athlete data
-    CDN = "cdn"            # cdn.nfl.com/core/ — full game packages
-    NOW = "now"            # now.core.api.nfl.com/v1/ — real-time news
+    SITE = "site"          # site.api.espn.com
+    CORE = "core"          # sports.core.api.espn.com
+    SITE_V2 = "site_v2"    # site.api.espn.com/apis/v2/ — standings only
+    WEB_V3 = "web_v3"      # site.web.api.espn.com/apis/common/v3/ — athlete data
+    CDN = "cdn"            # cdn.espn.com/core/ — full game packages
+    NOW = "now"            # now.core.api.espn.com/v1/ — real-time news
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Sports & League Registry
-# All 17 sports and 139 leagues discovered from the nfl v2/v3 WADL.
+# Curated metadata for 17 sports; see docs/data/leagues.json for live discovery.
 # Format: "sport_slug": "Display Name"
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -131,6 +136,7 @@ LEAGUE_INFO: dict[str, tuple[str, str]] = {
     "pll": ("Premier Lacrosse League", "PLL"),
     "womens-college-lacrosse": ("NCAA Women's Lacrosse", "NCAWL"),
     # MMA
+    "ufc": ("Ultimate Fighting Championship", "UFC"),
     "absolute": ("Absolute Championship Berkut", "ACB"),
     "affliction": ("Affliction", "AFF"),
     "bang-fighting": ("Bang Fighting Championships", "BFC"),
@@ -190,6 +196,7 @@ LEAGUE_INFO: dict[str, tuple[str, str]] = {
     # Rugby League
     "3": ("Rugby League", "RL"),
     # Soccer
+    "eng.2": ("English League Championship", "EFL"),
     "fifa.world": ("FIFA World Cup", "WC"),
     "fifa.wwc": ("FIFA Women's World Cup", "WWC"),
     "uefa.champions": ("UEFA Champions League", "UCL"),
@@ -268,36 +275,36 @@ class nflClient:
         """Initialize nfl client.
 
         Supports all discovered nfl API domains:
-        - site.api.nfl.com          → scoreboard, teams, news, injuries, etc.
-        - site.api.nfl.com/apis/v2/ → standings (site/v2 returns a stub)
-        - sports.core.api.nfl.com   → core data, odds, play-by-play
-        - site.web.api.nfl.com      → athlete stats, gamelog, splits (common/v3)
-        - cdn.nfl.com/core/         → full game packages with drives/plays
-        - now.core.api.nfl.com/v1/  → real-time news feed
+        - site.api.espn.com          → scoreboard, teams, news, injuries, etc.
+        - site.api.espn.com/apis/v2/ → standings (site/v2 returns a stub)
+        - sports.core.api.espn.com   → core data, odds, play-by-play
+        - site.web.api.espn.com      → athlete stats, gamelog, splits (common/v3)
+        - cdn.espn.com/core/         → full game packages with drives/plays
+        - now.core.api.espn.com/v1/  → real-time news feed
 
         Args:
-            site_api_url: Base URL for site.api.nfl.com
-            core_api_url: Base URL for sports.core.api.nfl.com
+            site_api_url: Base URL for site.api.espn.com
+            core_api_url: Base URL for sports.core.api.espn.com
             timeout: Request timeout in seconds
             max_retries: Maximum retry attempts
             user_agent: User-Agent header value
         """
-        config = getattr(settings, "nfl_CLIENT", {})
+        config = getattr(settings, "NFL_CLIENT", {})
 
         self.site_api_url = (
-            site_api_url or config.get("SITE_API_BASE_URL", "https://site.api.nfl.com")
+            site_api_url or config.get("SITE_API_BASE_URL", "https://site.api.espn.com")
         ).rstrip("/")
         self.core_api_url = (
-            core_api_url or config.get("CORE_API_BASE_URL", "https://sports.core.api.nfl.com")
+            core_api_url or config.get("CORE_API_BASE_URL", "https://sports.core.api.espn.com")
         ).rstrip("/")
         self.web_v3_url = config.get(
-            "WEB_V3_API_BASE_URL", "https://site.web.api.nfl.com"
+            "WEB_V3_API_BASE_URL", "https://site.web.api.espn.com"
         ).rstrip("/")
         self.cdn_url = config.get(
-            "CDN_API_BASE_URL", "https://cdn.nfl.com"
+            "CDN_API_BASE_URL", "https://cdn.espn.com"
         ).rstrip("/")
         self.now_url = config.get(
-            "NOW_API_BASE_URL", "https://now.core.api.nfl.com"
+            "NOW_API_BASE_URL", "https://now.core.api.espn.com"
         ).rstrip("/")
         self.timeout = timeout or config.get("TIMEOUT", 30.0)
         self.max_retries = max_retries or config.get("MAX_RETRIES", 3)
@@ -370,25 +377,25 @@ class nflClient:
             nflClientError: For other HTTP errors
         """
         if response.status_code == 404:
-            logger.warning("nfl_resource_not_found", url=url)
+            logger.warning("espn_resource_not_found", url=url)
             raise nflNotFoundError(f"nfl resource not found: {url}")
 
         if response.status_code == 429:
-            logger.warning("nfl_rate_limited", url=url)
+            logger.warning("espn_rate_limited", url=url)
             raise nflRateLimitError("nfl API rate limit exceeded")
 
         if response.status_code >= 500:
             logger.error(
-                "nfl_server_error",
+                "espn_server_error",
                 url=url,
                 status_code=response.status_code,
             )
             # Raise for retry
-            raise nflClientError(f"nfl server error: {response.status_code}")
+            raise nflTransientError(f"nfl server error: {response.status_code}")
 
         if response.status_code >= 400:
             logger.error(
-                "nfl_client_error",
+                "espn_client_error",
                 url=url,
                 status_code=response.status_code,
             )
@@ -398,7 +405,7 @@ class nflClient:
         try:
             data = response.json()
         except Exception as e:
-            logger.error("nfl_json_parse_error", url=url, error=str(e))
+            logger.error("espn_json_parse_error", url=url, error=str(e))
             raise nflClientError(f"Failed to parse nfl response: {e}") from e
 
         return nflResponse(data=data, status_code=response.status_code, url=url)
@@ -415,13 +422,15 @@ class nflClient:
         """
 
         @retry(
-            retry=retry_if_exception_type((httpx.TransportError, nflClientError)),
+            retry=retry_if_exception(
+                lambda exc: isinstance(exc, httpx.TransportError | nflTransientError)
+            ),
             stop=stop_after_attempt(self.max_retries),
             wait=wait_exponential(multiplier=self.retry_backoff, min=1, max=10),
             reraise=True,
         )
         def _do_request() -> nflResponse:
-            logger.debug("nfl_request", method=method, url=url, params=params)
+            logger.debug("espn_request", method=method, url=url, params=params)
             response = self.client.request(method, url, params=params)
             return self._handle_response(response, url)
 
@@ -429,7 +438,7 @@ class nflClient:
             return _do_request()
         except RetryError as e:
             logger.error(
-                "nfl_request_failed_after_retries",
+                "espn_request_failed_after_retries",
                 url=url,
                 retries=self.max_retries,
             )
@@ -440,7 +449,7 @@ class nflClient:
             # These should not be retried, re-raise directly
             raise
         except httpx.TransportError as e:
-            logger.error("nfl_transport_error", url=url, error=str(e))
+            logger.error("espn_transport_error", url=url, error=str(e))
             raise nflClientError(f"nfl connection error: {e}") from e
 
     def get(
@@ -476,8 +485,8 @@ class nflClient:
         Args:
             sport: Sport slug (e.g., "basketball", "football")
             league: League slug (e.g., "nba", "nfl")
-            date: Date to get scoreboard for (YYYYMMDD format or datetime)
-            limit: Maximum number of events to return
+            date: YYYYMMDD, inclusive YYYYMMDD-YYYYMMDD (up to 31 days), or datetime
+            limit: Maximum events requested per day; upstream limits still apply
 
         Returns:
             nflResponse with scoreboard data
@@ -485,9 +494,37 @@ class nflClient:
         path = f"/apis/site/v2/sports/{sport}/{league}/scoreboard"
         params: dict[str, Any] = {}
 
+        if isinstance(date, str) and "-" in date:
+            days = scoreboard_dates(date)
+            events: dict[str, dict[str, Any]] = {}
+            daily_metadata = []
+            for day in days:
+                response = self.get_scoreboard(sport, league, day, limit)
+                daily_events = response.data.get("events")
+                if not isinstance(daily_events, list):
+                    raise nflClientError(f"Missing scoreboard events for {day}")
+                for event in daily_events:
+                    if not isinstance(event, dict) or not event.get("id"):
+                        raise nflClientError(f"Invalid scoreboard event for {day}")
+                    events[str(event["id"])] = event
+                daily_metadata.append({
+                    "date": day,
+                    "metadata": {k: v for k, v in response.data.items() if k != "events"},
+                })
+            return nflResponse(
+                data={
+                    "events": sorted(events.values(), key=lambda e: (e.get("date", ""), str(e["id"]))),
+                    "dateRange": date,
+                    "dailyMetadata": daily_metadata,
+                },
+                status_code=200,
+                url=self._build_url(nflEndpointDomain.SITE, path) + f"?dates={date}",
+            )
+
         if date:
             if isinstance(date, datetime):
                 date = date.strftime("%Y%m%d")
+            scoreboard_dates(date)
             params["dates"] = date
 
         if limit:
@@ -1043,6 +1080,22 @@ class nflClient:
 
     # --------------------- Team Sub-Resource Endpoints ---------------------
 
+    def get_team_schedule(
+        self, sport: str, league: str, team_id: str, season: int | None = None,
+    ) -> nflResponse:
+        """Get a team's schedule, optionally for a historical season."""
+        return self.get(
+            f"/apis/site/v2/sports/{sport}/{league}/teams/{team_id}/schedule",
+            params={"season": season} if season is not None else None,
+        )
+
+    def get_athlete_bio(self, sport: str, league: str, athlete_id: str | int) -> nflResponse:
+        """Get athlete awards and team history from the Common v3 API."""
+        return self.get(
+            f"/apis/common/v3/sports/{sport}/{league}/athletes/{athlete_id}/bio",
+            domain=nflEndpointDomain.WEB_V3,
+        )
+
     def get_team_injuries(
         self,
         sport: str,
@@ -1366,7 +1419,7 @@ class nflClient:
     ) -> nflResponse:
         """Get athlete overview (stats snapshot, next game, rotowire notes, news).
 
-        Uses site.web.api.nfl.com/apis/common/v3/. Confirmed working for:
+        Uses site.web.api.espn.com/apis/common/v3/. Confirmed working for:
         NFL, NBA, NHL, MLB. Soccer returns minimal data.
 
         Args:
@@ -1391,7 +1444,7 @@ class nflClient:
     ) -> nflResponse:
         """Get season stats for an athlete.
 
-        Uses site.web.api.nfl.com/apis/common/v3/. Confirmed working for:
+        Uses site.web.api.espn.com/apis/common/v3/. Confirmed working for:
         NFL, NBA, NHL, MLB. Returns 404 for Soccer.
 
         Args:
@@ -1422,7 +1475,7 @@ class nflClient:
     ) -> nflResponse:
         """Get game-by-game log for an athlete.
 
-        Uses site.web.api.nfl.com/apis/common/v3/. Confirmed working for:
+        Uses site.web.api.espn.com/apis/common/v3/. Confirmed working for:
         NFL, NBA, MLB. Returns 404 for NHL, 400 for Soccer.
 
         Args:
@@ -1451,7 +1504,7 @@ class nflClient:
     ) -> nflResponse:
         """Get home/away/opponent splits for an athlete.
 
-        Uses site.web.api.nfl.com/apis/common/v3/. Confirmed working for:
+        Uses site.web.api.espn.com/apis/common/v3/. Confirmed working for:
         NFL, NBA, NHL, MLB. Not available for Soccer.
 
         Args:
@@ -1486,7 +1539,7 @@ class nflClient:
     ) -> nflResponse:
         """Get ranked statistics leaderboard across all athletes.
 
-        Uses site.web.api.nfl.com/apis/common/v3/. Confirmed working for:
+        Uses site.web.api.espn.com/apis/common/v3/. Confirmed working for:
         NBA, NFL, NHL, MLB.
 
         Args:
@@ -1523,7 +1576,7 @@ class nflClient:
         game_id: str,
         view: str = "game",
     ) -> nflResponse:
-        """Get full game package from cdn.nfl.com.
+        """Get full game package from cdn.espn.com.
 
         Returns a rich gamepackageJSON object containing drives, plays,
         scoring summary, win probability, boxscore, betting odds, and more.
@@ -1578,7 +1631,7 @@ class nflClient:
         limit: int = 20,
         offset: int = 0,
     ) -> nflResponse:
-        """Get real-time news from now.core.api.nfl.com.
+        """Get real-time news from now.core.api.espn.com.
 
         Supports filtering by sport, league, or team. Returns a feed of
         articles with categories, images, and publication timestamps.
@@ -1603,6 +1656,77 @@ class nflClient:
             params["team"] = team
         logger.info("fetching_now_news", sport=sport, league=league, team=team)
         return self.get(path, domain=nflEndpointDomain.NOW, params=params)
+
+
+    # Additional discovery and event resources verified in the September audit.
+
+    def get_core_event(self, sport: str, league: str, event_id: str) -> nflResponse:
+        """Core event metadata and references; get_event() returns the Site summary."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/events/{event_id}", domain=nflEndpointDomain.CORE)
+
+    def get_competition(self, sport: str, league: str, event_id: str, competition_id: str) -> nflResponse:
+        """Competition metadata; event and competition IDs need not be equal."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/events/{event_id}/competitions/{competition_id}", domain=nflEndpointDomain.CORE)
+
+    def get_competition_status(self, sport: str, league: str, event_id: str, competition_id: str) -> nflResponse:
+        """Resolve the competition status reference."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/events/{event_id}/competitions/{competition_id}/status", domain=nflEndpointDomain.CORE)
+
+    def get_competitor_roster(self, sport: str, league: str, event_id: str, competition_id: str, competitor_id: str, page: int = 1, limit: int = 100) -> nflResponse:
+        """Game roster (often entries rather than items); paging support varies."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/events/{event_id}/competitions/{competition_id}/competitors/{competitor_id}/roster", domain=nflEndpointDomain.CORE, params={"page": page, "limit": limit})
+
+    def get_competitor_statistics(self, sport: str, league: str, event_id: str, competition_id: str, competitor_id: str) -> nflResponse:
+        """Game statistics for one competitor."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/events/{event_id}/competitions/{competition_id}/competitors/{competitor_id}/statistics", domain=nflEndpointDomain.CORE)
+
+    def get_competitor_linescores(self, sport: str, league: str, event_id: str, competition_id: str, competitor_id: str) -> nflResponse:
+        """Period/inning scores for one competitor."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/events/{event_id}/competitions/{competition_id}/competitors/{competitor_id}/linescores", domain=nflEndpointDomain.CORE)
+
+    def get_drives(self, sport: str, league: str, event_id: str, competition_id: str, page: int = 1, limit: int = 100) -> nflResponse:
+        """Football drive references; follow each drive's plays for detail."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/events/{event_id}/competitions/{competition_id}/drives", domain=nflEndpointDomain.CORE, params={"page": page, "limit": limit})
+
+    def get_athlete_eventlog(self, sport: str, league: str, athlete_id: str, season: int | None = None) -> nflResponse:
+        """Core athlete event participation references."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/athletes/{athlete_id}/eventlog", domain=nflEndpointDomain.CORE, params={"season": season} if season else None)
+
+    def get_athlete_statisticslog(self, sport: str, league: str, athlete_id: str) -> nflResponse:
+        """References to available athlete statistics by season/type."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/athletes/{athlete_id}/statisticslog", domain=nflEndpointDomain.CORE)
+
+    def get_calendar(self, sport: str, league: str) -> nflResponse:
+        """Core calendar; Site v2 calendar is not interchangeable."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/calendar", domain=nflEndpointDomain.CORE)
+
+    def get_season_types(self, sport: str, league: str, season: int) -> nflResponse:
+        """Discover supported season types rather than assuming all four exist."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/seasons/{season}/types", domain=nflEndpointDomain.CORE)
+
+    def get_season_weeks(self, sport: str, league: str, season: int, season_type: int = 2) -> nflResponse:
+        """Weeks for a season type (primarily football)."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/seasons/{season}/types/{season_type}/weeks", domain=nflEndpointDomain.CORE)
+
+    def get_providers(self, sport: str, league: str, page: int = 1, limit: int = 100) -> nflResponse:
+        """Discover odds providers instead of relying on stale hard-coded IDs."""
+        return self.get(f"/v2/sports/{sport}/leagues/{league}/providers", domain=nflEndpointDomain.CORE, params={"page": page, "limit": limit})
+
+    def search(self, query: str, limit: int = 10) -> nflResponse:
+        """Global nfl search; query values are encoded by httpx."""
+        return self.get("/apis/search/v2", domain=nflEndpointDomain.WEB_V3, params={"query": query, "limit": limit})
+
+    def get_personalized_scoreboard(self, sport: str, region: str = "us", timezone: str = "UTC") -> nflResponse:
+        """Header leagues/events, useful for cricket series discovery."""
+        return self.get("/apis/personalized/v2/scoreboard/header", params={"sport": sport, "region": region, "tz": timezone})
+
+    def get_cricket_summary(self, league_id: str, event_id: str, region: str = "in") -> nflResponse:
+        """Cricket scorecard on the Web Site API (numeric league ID)."""
+        return self.get(f"/apis/site/v2/sports/cricket/{league_id}/summary", domain=nflEndpointDomain.WEB_V3, params={"event": event_id, "lang": "en", "region": region})
+
+    def get_golf_player_summary(self, tour: str, event_id: str, player_id: str, season: int) -> nflResponse:
+        """Golf hole-by-hole round data from the Web Site API."""
+        return self.get(f"/apis/site/v2/sports/golf/{tour}/leaderboard/{event_id}/playersummary", domain=nflEndpointDomain.WEB_V3, params={"season": season, "player": player_id})
 
 
 # Default singleton instance

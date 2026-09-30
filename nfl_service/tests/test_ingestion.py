@@ -5,13 +5,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from apps.nfl.models import Competitor, Event, League, Sport, Team
 from apps.ingest.services import (
     IngestionResult,
     ScoreboardIngestionService,
     TeamIngestionService,
     get_or_create_sport_and_league,
 )
+from apps.nfl.models import Competitor, Event, League, Sport, Team
 from clients.nfl_client import nflResponse
 
 

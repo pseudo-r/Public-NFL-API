@@ -1,0 +1,42 @@
+[
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=20260920",
+    "checked_at": "2026-09-30T14:20:08.656224+00:00",
+    "status": 200,
+    "content_type": "application/json;charset=UTF-8",
+    "top_level_keys": [
+      "leagues",
+      "events",
+      "provider",
+      "week"
+    ]
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/6/schedule",
+    "checked_at": "2026-09-30T14:20:08.829990+00:00",
+    "status": 200,
+    "content_type": "application/json;charset=UTF-8",
+    "top_level_keys": [
+      "timestamp",
+      "status",
+      "season",
+      "team",
+      "events",
+      "requestedSeason",
+      "byeWeek"
+    ]
+  },
+  {
+    "url": "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/calendar",
+    "checked_at": "2026-09-30T14:20:08.978012+00:00",
+    "status": 200,
+    "content_type": "application/json;charset=utf-8",
+    "top_level_keys": [
+      "count",
+      "pageIndex",
+      "pageSize",
+      "pageCount",
+      "items"
+    ]
+  }
+]

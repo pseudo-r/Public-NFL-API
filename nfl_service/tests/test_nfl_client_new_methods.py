@@ -22,7 +22,7 @@ class TestTeamSubResources:
             ],
         }
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/basketball/nba/teams/9/injuries",
+            url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/9/injuries",
             json=mock_response,
         )
 
@@ -49,7 +49,7 @@ class TestTeamSubResources:
             ],
         }
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/football/nfl/teams/6/depthcharts",
+            url="https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/6/depthcharts",
             json=mock_response,
         )
 
@@ -75,7 +75,7 @@ class TestTeamSubResources:
             ]
         }
         httpx_mock.add_response(
-            url="https://site.api.nfl.com/apis/site/v2/sports/football/nfl/teams/6/transactions",
+            url="https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/6/transactions",
             json=mock_response,
         )
 
@@ -99,7 +99,7 @@ class TestGameSituationEndpoints:
             "possession": {"id": "12", "displayName": "Kansas City Chiefs"},
         }
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/football/leagues/nfl"
+            "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
             "/events/401671823/competitions/401671823/situation"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -119,7 +119,7 @@ class TestGameSituationEndpoints:
             "awayTeam": {"gameProjection": "36.6"},
         }
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/basketball/leagues/nba"
+            "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
             "/events/401765432/competitions/401765432/predictor"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -142,7 +142,7 @@ class TestGameSituationEndpoints:
             ],
         }
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/basketball/leagues/nba"
+            "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
             "/events/401765432/competitions/401765432/broadcasts"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -159,7 +159,7 @@ class TestGameSituationEndpoints:
         """Test that competition_id defaults to event_id when not provided."""
         mock_response = {"count": 0, "items": []}
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/basketball/leagues/nba"
+            "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
             "/events/99999/competitions/99999/broadcasts"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -187,7 +187,7 @@ class TestCoachesEndpoints:
             ],
         }
         httpx_mock.add_response(
-            url="https://sports.core.api.nfl.com/v2/sports/basketball/leagues/nba/coaches?limit=100",
+            url="https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/coaches?limit=100",
             json=mock_response,
         )
 
@@ -202,7 +202,7 @@ class TestCoachesEndpoints:
         """Test coaches endpoint with specific season."""
         mock_response = {"count": 32, "items": []}
         httpx_mock.add_response(
-            url="https://sports.core.api.nfl.com/v2/sports/football/leagues/nfl/seasons/2024/coaches?limit=100",
+            url="https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2024/coaches?limit=100",
             json=mock_response,
         )
 
@@ -221,7 +221,7 @@ class TestCoachesEndpoints:
             "record": {"overall": {"wins": 548, "losses": 232}},
         }
         httpx_mock.add_response(
-            url="https://sports.core.api.nfl.com/v2/sports/basketball/leagues/nba/coaches/6010",
+            url="https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/coaches/6010",
             json=mock_response,
         )
 
@@ -244,7 +244,7 @@ class TestQBREndpoint:
             ]
         }
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/football/leagues/nfl"
+            "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
             "/seasons/2024/types/2/groups/1/qbr/0"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -259,7 +259,7 @@ class TestQBREndpoint:
         """Test QBR weekly endpoint."""
         mock_response = {"leaders": []}
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/football/leagues/nfl"
+            "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
             "/seasons/2024/types/2/weeks/1/qbr/0"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -273,7 +273,7 @@ class TestQBREndpoint:
         """Test QBR with home split (split=1)."""
         mock_response = {"leaders": []}
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/football/leagues/nfl"
+            "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
             "/seasons/2024/types/2/groups/1/qbr/1"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -287,7 +287,7 @@ class TestQBREndpoint:
         """Test QBR for College Football (group=80)."""
         mock_response = {"leaders": []}
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/football/leagues/college-football"
+            "https://sports.core.api.espn.com/v2/sports/football/leagues/college-football"
             "/seasons/2024/types/2/groups/80/qbr/0"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -310,7 +310,7 @@ class TestPowerIndexEndpoint:
             "items": [{"team": {"id": "99"}, "value": 18.4}],
         }
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/basketball/leagues"
+            "https://sports.core.api.espn.com/v2/sports/basketball/leagues"
             "/mens-college-basketball/seasons/2025/powerindex"
         )
         httpx_mock.add_response(url=url, json=mock_response)
@@ -330,7 +330,7 @@ class TestPowerIndexEndpoint:
             "value": 21.7,
         }
         url = (
-            "https://sports.core.api.nfl.com/v2/sports/basketball/leagues"
+            "https://sports.core.api.espn.com/v2/sports/basketball/leagues"
             "/mens-college-basketball/seasons/2025/powerindex/150"
         )
         httpx_mock.add_response(url=url, json=mock_response)
