@@ -1,5 +1,7 @@
 # NFL Public API Documentation
 
+> **Unofficial project and usage scope:** This repository contains endpoint documentation and reference code. It is not affiliated with or endorsed by the upstream providers and does not offer a hosted API or data service. “Public” describes endpoint reachability, not permission to collect, reuse, or redistribute data. See [project scope and permitted use](PROJECT_SCOPE.md) before using the examples.
+
 Service maintenance: [September 2026 audit, new routes, verification, and limitations](docs/audit-2026-09-30.md).
 
 **Disclaimer:** This documents NFL data APIs across multiple domains, including undocumented public endpoints used by NFL.com and ESPN's NFL data infrastructure. Not affiliated with the NFL or ESPN. Use responsibly.
@@ -13,17 +15,6 @@ Service maintenance: [September 2026 audit, new routes, verification, and limita
 | ☕ Buy Me a Coffee | [buymeacoffee.com/pseudo_r](https://buymeacoffee.com/pseudo_r) |
 | 💖 GitHub Sponsors | [github.com/sponsors/Kloverdevs](https://github.com/sponsors/Kloverdevs) |
 | 💳 PayPal Donate | [PayPal (CAD)](https://www.paypal.com/donate/?business=H5VPFZ2EHVNBU&no_recurring=0&currency_code=CAD) |
-
----
-
-## 📱 Real-World Apps Built With This API
-
-These apps are live examples of what you can build using this documentation and the included Django service:
-
-### 🏈 [Sportly: American Football Live](https://play.google.com/store/apps/details?id=com.sportly.football)
-> Premium NFL scores, standings, play-by-play, and dynamic game tracking. Built entirely on the endpoints documented here.
-
-[![Get it on Google Play](https://img.shields.io/badge/Google_Play-Sportly_Football-3DDC84?logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=com.sportly.football)
 
 ---
 
