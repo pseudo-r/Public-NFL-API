@@ -90,9 +90,9 @@ This service consumes nfl's undocumented public APIs. Below is a reference of av
 
 | Domain | Purpose |
 |--------|---------|
-| `site.api.nfl.com` | Scores, news, teams, standings |
-| `sports.core.api.nfl.com` | Athletes, stats, odds |
-| `cdn.nfl.com` | CDN-optimized live data |
+| `site.api.espn.com` | Scores, news, teams, standings |
+| `sports.core.api.espn.com` | Athletes, stats, odds |
+| `cdn.espn.com` | CDN-optimized live data |
 
 ### Supported Sports & Leagues
 
@@ -148,7 +148,7 @@ This service consumes nfl's undocumented public APIs. Below is a reference of av
 
 **Site API (General Data):**
 ```
-https://site.api.nfl.com/apis/site/v2/sports/{sport}/{league}/{resource}
+https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/{resource}
 ```
 
 | Resource | Path |
@@ -162,7 +162,7 @@ https://site.api.nfl.com/apis/site/v2/sports/{sport}/{league}/{resource}
 
 **Core API (Detailed Data):**
 ```
-https://sports.core.api.nfl.com/v2/sports/{sport}/leagues/{league}/{resource}
+https://sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/{resource}
 ```
 
 | Resource | Path |
@@ -175,9 +175,9 @@ https://sports.core.api.nfl.com/v2/sports/{sport}/leagues/{league}/{resource}
 ### nfl Client Configuration
 
 ```python
-nfl_CLIENT = {
-    "SITE_API_BASE_URL": "https://site.api.nfl.com",
-    "CORE_API_BASE_URL": "https://sports.core.api.nfl.com",
+NFL_CLIENT = {
+    "SITE_API_BASE_URL": "https://site.api.espn.com",
+    "CORE_API_BASE_URL": "https://sports.core.api.espn.com",
     "TIMEOUT": 30.0,
     "MAX_RETRIES": 3,
     "RETRY_BACKOFF": 1.0,
